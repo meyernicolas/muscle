@@ -1,0 +1,87 @@
+# An asymptotic independent example
+# Here d = 40, the 40 components are Pareto(1) and independent
+# In this case, Z = Theta, so that it is not necessary to focus on maximal subsets
+
+rm(list=ls())
+library(mvtnorm)
+#setwd("~/Dropbox/olivier/articles/tail_inference_high_dimensional_data/v1/code")
+source(file = "algo.R")
+
+rank_trans <- function(v){
+  n <- length(v)
+  res <- rep(0,n)
+  res[order(v)] <- n/(n:1)
+  return(res)
+}
+
+set.seed(2)
+d <- 40 # dimension
+
+#####
+# 1. Plots
+#####
+n_plot <- 10^4
+A <- matrix(runif(d^2)*2-1, ncol = d)
+Sigma <- cov2cor(t(A)%*%A)
+gauss <- rmvnorm(n_plot, mean = rep(0,d), Sigma)
+X <- t(apply(gauss, 2, rank_trans))
+
+prop <- seq(0.005, 0.12, by = 0.005)
+
+result <- algo_plot(X, prop)
+which_k <- which.min(result[ , 4])
+which_k
+k <- result[which_k ,1]
+k
+
+plot(result[ ,1], result[ ,4], type='l', ylim = c(0.5, 1), xlab = "k", ylab = "KL(n)")
+lines( x=c(k, k), y=c(0, result[which_k, 4]), lty=3, lwd=2)
+lines( x=c(0, k), y=c(result[which_k, 4], result[which_k, 4]), lty=3, lwd=2)
+text(k+35, 0.75, paste("k_min =", k))
+
+plot(result[ ,1], result[ ,3], type='l', xlab = "k", ylim = c(0, 50), ylab = "s = argmin KL(k)")
+lines( x=c(k, k), y=c(0,result[which_k, 3]), lty=3, lwd=2)
+lines( x=c(0, k), y=c(result[which_k, 3],result[which_k, 3]), lty=3, lwd=2)
+text(k, 45, paste("s =", result[ which_k, 3]))
+
+
+#####
+# 2. Analysis of the average number of errors
+#####
+N <- 100 # number of simulations
+N_model <- 20
+n <- c(10^4, 3*10^4, 7*10^4)
+length_n <- length(n)
+prop <- seq(0.005, 0.1, by = 0.005)
+
+M_theor <- diag(d)
+
+result <- matrix(rep(0, length_n*5), nrow = length_n) # the error vector
+colnames(result) <- c("Type 1", "Type 2", "s", "k", "u")
+rownames(result) <- paste("n=", n)
+
+for (j in 1:N_model){ # different models
+  A <- matrix(runif(d^2)*2-1, ncol = d)
+  Sigma <- cov2cor(t(A)%*%A)
+  for (r in 1:length_n){
+    for (l in 1:N){
+      gauss <- rmvnorm(n[r], mean = rep(0,d), Sigma)
+      X <- t(apply(gauss, 2, rank_trans)) # the data: asymptotic independent coordinates
+     
+     subsets <- algo_subsets(X, prop)
+     result[r, 3] <- result[r, 3] + subsets[[4]] # s
+     result[r, 4] <- result[r, 4] + subsets[[2]] # k
+     result[r, 5] <- result[r, 5] + subsets[[3]] # u
+      M_result <- as.matrix(subsets[[1]][-(d+1), ])# the empirical matrix
+    
+      result[r, 1] <- result[r, 1] + # type 1
+        sum( tail( !duplicated( rbind(t(M_theor), t(M_result)) ), ncol(M_result) ) )
+      result[r,2] <- result[r,2] + # type 2
+        sum( tail( !duplicated( rbind(t(M_result), t(M_theor)) ), ncol(M_theor) ) )
+      
+      print(c(j,r,l))
+    }
+  }
+}
+result/(N*N_model)
+
