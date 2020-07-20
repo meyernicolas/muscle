@@ -1,0 +1,102 @@
+# The data set we use corresponds to the value-average daily returns of 49 industry portfolios
+# compiled and posted as part of the Kenneth French Data Library.
+# We restrict our study to the period 1970-2019 which provides n = 12 613 observations.
+
+rm(list=ls())
+library(rlang)
+library(latex2exp) # to insert latex symbols in the plots
+setwd("/Users/nicolasmeyer/Dropbox/olivier/articles//tail_inference_high_dimensional_data/v1/code")
+source("algo.R")
+
+prop <- seq(0.005, 0.15, by = 0.005)
+prop
+length(prop)
+
+#####
+# 1. Prepartion of the data
+#####
+# Details on the industries can be found on the file 'details_industries.txt'
+portfolios <- read.delim("finance/49_Industry_Portfolios_Daily.txt", sep="", dec=".", header = TRUE)
+dim(portfolios)
+industries <- colnames(portfolios)
+
+# We restrict the time period to 1970-2019
+date_min <- which(rownames(portfolios)==19700102)
+date_max <- which(rownames(portfolios)==20191231)
+mydata <- t(portfolios[date_min:date_max, ])
+dim(mydata)
+d <- nrow(mydata)
+n <- ncol(mydata)
+
+# Without Hill
+variability <- abs(mydata)
+
+result_variab <- algo_plot(variability, prop)
+which_k_variab<- which.min(result_variab[ , 4])
+which_k_variab
+k_variab <- result_variab[which_k_variab , 1]
+k_variab
+
+plot(result_variab[ , 1], result_variab[ , 4], type = "l", ylim = c(0.4, 0.9), xlab = "k", ylab = "KL(n)")
+
+# Hill plot
+hill <- function(X, k){
+  n <- length(X)
+  X_order <- sort(X, decreasing = TRUE)
+  alpha <- sum(log(X_order[1:k]))/k - log(X_order[k])
+  return(1/alpha)
+}
+K <- 2:1000
+
+variability <- abs(mydata)
+hill_variability <- rep(0, length(K))
+norm_variability<-apply(variability,2,sum)
+for (j in K){
+  hill_variability[j-1] <- hill(norm_variability, K[j-1])
+}
+plot(K, hill_variability, type ='l', xlab = "k", ylab = TeX('Hill estimator of $\\alpha$'))
+alpha_variability <- mean(hill_variability[450])
+alpha_variability
+abline(h = alpha_variability, lty=3)
+
+variability <- variability^alpha_variability
+
+#####
+# 2. Identification of the subsets
+#####
+
+result_variab <- algo_plot(variability, prop)
+which_k_variab<- which.min(result_variab[ , 4])
+which_k_variab
+k_variab <- result_variab[which_k_variab , 1]
+k_variab
+
+plot(result_variab[ , 1], result_variab[ , 4], type = "l", ylim = c(0.82, 0.95), xlab = "k", ylab = "KL(n)")
+lines( x=c(k_variab, k_variab), y=c(0, result_variab[ which_k_variab, 4]), lty=3, lwd=2)
+lines( x=c(0, k_variab), y=c(result_variab[ which_k_variab, 4], result_variab[ which_k_variab, 4]),
+       lty=3, lwd=2)
+text(k_variab, 0.88, paste("k_min =", k_variab))
+
+plot(result_variab[ , 1], result_variab[ , 3], type = "l", xlab = "k", ylab = "s = argmin KL(k)")
+lines( x=c(k_variab,k_variab), y=c(0,result_variab[ which_k_variab, 3]), lty=3, lwd=2)
+lines( x=c(0,k_variab), y=c(result_variab[ which_k_variab, 3],result_variab[ which_k_variab, 3]), lty=3, lwd=2)
+text(k_variab/2, 22, paste("s =", result_variab[ which_k_variab, 3]))
+
+subsets_variab <- algo_subsets(variability, prop)
+
+s_variab <- subsets_variab[[4]]
+s_variab
+relevant_variab <- subsets_variab[[1]][1:d, ] # the faces
+proba_variab <- subsets_variab[[5]] # the proportion on each face
+View(relevant_variab)
+
+features_variab <- list()
+for (j in 1:s_variab){
+  features_variab[[j]] <- industries[ which(relevant_variab[ ,j] ==1) ]
+}
+View(features_variab)
+
+
+
+
+
