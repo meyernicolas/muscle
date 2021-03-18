@@ -1,87 +1,119 @@
-# An asymptotic independent example
-# Here d = 40, the 40 components are Pareto(1) and independent
-# In this case, Z = Theta, so that it is not necessary to focus on maximal subsets
+##########################################################################################
+##############################  ASYMPTOTIC INDEPENDENCE ##################################
+##########################################################################################
+# We apply our method on a Gaussian copula with Pareto marginals.
 
 rm(list=ls())
+
+## Load code ##
+source(file = "muscle.R")
 library(mvtnorm)
-#setwd("~/Dropbox/olivier/articles/tail_inference_high_dimensional_data/v1/code")
-source(file = "algo.R")
+GaussToPar <- function(x){1/(1-pnorm(x))} # transform Gaussian into Pareto
 
-rank_trans <- function(v){
-  n <- length(v)
-  res <- rep(0,n)
-  res[order(v)] <- n/(n:1)
-  return(res)
-}
+##########################################################################################
+########################################  PLOTS ##########################################
+##########################################################################################
 
-set.seed(2)
-d <- 40 # dimension
+###################################  SIMULATE DATA #######################################
+set.seed(321)
+d <- 40
+n <- 3*10^4
+prop <- seq(0.01, 0.12, by = 0.005)
+rho <- 0.5
 
-#####
-# 1. Plots
-#####
-n_plot <- 10^4
-A <- matrix(runif(d^2)*2-1, ncol = d)
-Sigma <- cov2cor(t(A)%*%A)
-gauss <- rmvnorm(n_plot, mean = rep(0,d), Sigma)
-X <- t(apply(gauss, 2, rank_trans))
-
-prop <- seq(0.005, 0.12, by = 0.005)
+Sigma <- matrix(rep(rho,d^2), ncol=d)
+diag(Sigma) <- rep(1,d)
+gauss <- rmvnorm(n, mean = rep(0,d), Sigma)
+X <- t(apply(gauss, 2, GaussToPar))
 
 result <- algo_plot(X, prop)
 which_k <- which.min(result[ , 4])
-which_k
 k <- result[which_k ,1]
-k
 
-plot(result[ ,1], result[ ,4], type='l', ylim = c(0.5, 1), xlab = "k", ylab = "KL(n)")
+# Evolution of our criterion with k
+plot(result[ ,1], result[ ,4], type='l', ylim = c(0.7, 0.9), xlab = "k", ylab = "penalized log-likelihood")
 lines( x=c(k, k), y=c(0, result[which_k, 4]), lty=3, lwd=2)
 lines( x=c(0, k), y=c(result[which_k, 4], result[which_k, 4]), lty=3, lwd=2)
-text(k+35, 0.75, paste("k_min =", k))
+text(k+35, 0.8, expression(paste(hat(k))== 1050))
 
-plot(result[ ,1], result[ ,3], type='l', xlab = "k", ylim = c(0, 50), ylab = "s = argmin KL(k)")
+
+# Evolution of the number of extremal directions with k
+plot(result[ ,1], result[ ,3], type='l', xlab = "k", ylim = c(0, 70), ylab = expression(paste(hat(s)(k))))
 lines( x=c(k, k), y=c(0,result[which_k, 3]), lty=3, lwd=2)
 lines( x=c(0, k), y=c(result[which_k, 3],result[which_k, 3]), lty=3, lwd=2)
-text(k, 45, paste("s =", result[ which_k, 3]))
+text( k, 50, expression(paste(hat(s)(hat(k))== 41)))
 
 
-#####
-# 2. Analysis of the average number of errors
-#####
-N <- 100 # number of simulations
-N_model <- 20
-n <- c(10^4, 3*10^4, 7*10^4)
-length_n <- length(n)
-prop <- seq(0.005, 0.1, by = 0.005)
+#########################  COMPARISON WITH THE TRUE DIRECTIONS ###########################
+# Empirical extremal directions detected by our algorithm
+  directions <- algo_subsets(X, prop)
+  M_emp <- as.matrix(directions[[1]][-(d+1), ])# the empirical matrix
+  M_theor <- diag(d)
+  weights <- directions[[5]]
 
+# The False Positive directions
+  FP <- tail( !duplicated( rbind(t(M_theor), t(M_emp)) ), ncol(M_emp) )
+  sum(FP)
+# The True Negative directions
+  TN <- tail( !duplicated( rbind(t(M_emp), t(M_theor)) ), ncol(M_theor) )
+  sum(TN)
+
+# Hellinger distance: 1-h^2 = sum (sqrt(p_i*q_i)) on the TP only (otherwise = 0)
+hell <- sqrt(1 - sum(sqrt(weights[!FP]/d)) )
+hell
+
+######################################################################################## 
+##################################### ALGORITHM ########################################
+######################################################################################## 
+
+set.seed(1234)
+n <- 3*10^4
+d <- 40
+prop <- seq(0.01, 0.12, by = 0.01)
+N <- 100
+hellinger <- list()
+hellinger_damex <- list()
 M_theor <- diag(d)
 
-result <- matrix(rep(0, length_n*5), nrow = length_n) # the error vector
-colnames(result) <- c("Type 1", "Type 2", "s", "k", "u")
-rownames(result) <- paste("n=", n)
-
-for (j in 1:N_model){ # different models
-  A <- matrix(runif(d^2)*2-1, ncol = d)
-  Sigma <- cov2cor(t(A)%*%A)
-  for (r in 1:length_n){
-    for (l in 1:N){
-      gauss <- rmvnorm(n[r], mean = rep(0,d), Sigma)
-      X <- t(apply(gauss, 2, rank_trans)) # the data: asymptotic independent coordinates
-     
-     subsets <- algo_subsets(X, prop)
-     result[r, 3] <- result[r, 3] + subsets[[4]] # s
-     result[r, 4] <- result[r, 4] + subsets[[2]] # k
-     result[r, 5] <- result[r, 5] + subsets[[3]] # u
-      M_result <- as.matrix(subsets[[1]][-(d+1), ])# the empirical matrix
-    
-      result[r, 1] <- result[r, 1] + # type 1
-        sum( tail( !duplicated( rbind(t(M_theor), t(M_result)) ), ncol(M_result) ) )
-      result[r,2] <- result[r,2] + # type 2
-        sum( tail( !duplicated( rbind(t(M_result), t(M_theor)) ), ncol(M_theor) ) )
+ptm<-proc.time()
+for (i in 1:4){
+  hell <- rep(NA,N)
+  hell_damex <- rep(NA,N)
+    for (r in 1:N){
+      rho <- (i-1)/4
+      Sigma <- matrix(rep(rho,d^2), ncol=d)
+      diag(Sigma) <- rep(1,d)
+      gauss <- rmvnorm(n, mean = rep(0,d), Sigma)
+      X <- t(apply(gauss, 2, GaussToPar))
       
-      print(c(j,r,l))
+      # OUR PROCEDURE
+      directions <- algo_subsets(X, prop)
+      M_result <- as.matrix(directions[[1]][-(d+1), ])# the empirical matrix
+      weights <- directions[[5]]
+     # The False Positive directions
+      FP <- tail( !duplicated( rbind(t(M_theor), t(M_result)) ), ncol(M_result) )
+      # The True Negative directions
+      TN <- tail( !duplicated( rbind(t(M_result), t(M_theor)) ), ncol(M_theor) )
+      hell[r] <- sqrt(1 - sum(sqrt(weights[!FP]/d)) )
+      
+      # DAMEX
+      damex <- algo_damex(X, p=0.1, epsilon = 0.1)
+      M_damex <- as.matrix(damex[-(d+1), ])
+      weights_damex <- damex[d+1,]/sum(damex[d+1,]) 
+      FP_damex <- tail( !duplicated( rbind(t(M_theor), t(M_damex)) ), ncol(M_damex) )
+      TN_damex <- tail( !duplicated( rbind(t(M_damex), t(M_theor)) ), ncol(M_theor) )
+      hell_damex[r] <- sqrt(1 - sum(sqrt(weights_damex[!FP_damex]/d)) )
+      
+      print(c(i,r))
     }
-  }
+  hellinger[[i]] <- hell
+  hellinger_damex[[i]] <- hell_damex
 }
-result/(N*N_model)
+proc.time()-ptm
+names(hellinger) <- c("0", "0.25", "0.5", "0.75")
+names(hellinger_damex) <- c("0", "0.25", "0.5", "0.75")
 
+bplot <- list(hellinger[[1]], hellinger_damex[[1]], hellinger[[2]], hellinger_damex[[2]],
+                hellinger[[3]], hellinger_damex[[3]], hellinger[[4]], hellinger_damex[[4]])
+
+boxplot(bplot, ylab="Hellinger distance", xlab=expression(paste(rho)))
