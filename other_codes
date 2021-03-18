@@ -1,0 +1,257 @@
+We provide here for completeness the code of Goix et al. (2017) and Simpson et al. (2020) which are used for our comparisons.
+
+
+########## Goix et al. (2017) - the DAMEX algorithm ##########
+
+algo_damex <- function(X, p=0.1, epsilon=0.1){
+  n <- ncol(X)
+  d <- nrow(X)
+  k <- sqrt(n)
+  max_norm <- apply(X, 2, max)
+  #  X_rt <- t(apply(X, 1, rank_trans)) # rank transform
+  
+  binary <- (X[ , max_norm > n/k ] - n/k*epsilon > 0)*1 # the epsilon-thickened rectangles
+  M <- occ_subsets(binary)
+  ordered_subcones <- order(M[d+1, ], decreasing=TRUE) # we order the matrix M in the increasing order
+  M <- as.matrix(M[ , ordered_subcones])
+  
+  # we keep the most represented subsets
+  relevant <- M[d+1, ] > p*sum(M[d+1, ])/ncol(M)
+  result <- as.matrix(M[, relevant])
+  
+  return(result)
+}
+
+######################################################################################################################################################
+
+########## Simpson et al. (2020) - the two methods ##########
+
+### General functions ###
+
+### Transform to Frechet margins ###
+frechetMargins <- function(univariateData){
+  size <- length(univariateData)
+  empiricalMargins <- rank(univariateData)/(size+1)
+  frechetMargins <- -1/log(empiricalMargins)
+  return(frechetMargins)
+}
+
+### Transform to exponential margins ###
+explMargins <- function(univariateData){
+  size <- length(univariateData)
+  empiricalMargins <- rank(univariateData)/(size+1)
+  eMargins <- -log(1-empiricalMargins)
+  return(eMargins)
+}
+
+### Determine the face from a set of labels ###
+varToFace <- function(var, d){
+  subsets <- lapply(1:d, function(x) combn(d,x))
+  dim <- length(var)
+  if(dim==1){
+    face <- var
+  } else{
+    face <- sum(choose(d,1:(dim-1))) + which(apply(subsets[[dim]],2,function(x){sum(x%in%var)})==dim)
+  }
+  return(face)
+}
+
+### Function to transform face number to set of variables
+faceToVar <- function(f,d){
+  subsets <- lapply(1:d, function(x) combn(d,x))
+  arraySize <- choose(d,1:d)
+  splits <- rep(NA,d)
+  for(j in 1:d){
+    splits[j] <- sum(arraySize[1:j])
+  }
+  splits <- c(0,splits)
+  faceArray1 <- max(which(splits<f))
+  faceArray2 <- f - splits[faceArray1]
+  var <- subsets[[faceArray1]][,faceArray2]
+  return(var)
+}
+
+#####################################################################################################################
+
+### Method 1 ###
+
+### Truncation of X ###
+transform <- function(x,p=0.05){
+  if(x <= -1/log(p)){
+    return(0)
+  }
+  if(x > -1/log(p)){
+    return(x)
+  }
+}
+
+### Determine the face on which a point lies ###
+face <- function(x){
+  d <- length(x)
+  large <- which(x > 0)
+  dimLarge <- length(large)
+  
+  val <- 1
+  if(dimLarge > 1){ 
+    val <- val + sum(choose(d, 1:(dimLarge-1))) 
+  }
+  
+  val <- val + sum(choose((d-1):(d-large[1]), dimLarge-1)) - choose((d-large[1]),dimLarge-1)
+  
+  while(dimLarge > 1){
+    d <- d-large[1]
+    large <- large[2:dimLarge]-large[1]
+    dimLarge <- length(large)
+    val <- val + sum(choose((d-1):(d-large[1]), dimLarge-1)) - choose((d-large[1]),dimLarge-1)
+  }
+  return(val)
+}
+
+
+### Function to fit model in each region ###
+mle <- function(dataTruncated,faceTruncated,quant,facePointMin){
+  faceNum <- 2^ncol(dataTruncated)-1
+  mles <- matrix(NA,ncol=2,nrow=faceNum)
+  
+  for(i in which(c(1:faceNum)%in%faceTruncated)){
+    dataFace <- dataTruncated[faceTruncated==i,]
+    if(length(dataFace)>(facePointMin*ncol(dataTruncated))){
+      RFace <- apply(dataFace,1,function(x){min(x[x>0])})
+      u <- quantile(RFace,quant)
+      mles[i,1] <- min(mean(log(RFace[RFace>u]/u)) , 1)
+      mles[i,2] <- (sum(RFace>u)/length(RFace)) * u^(1/mles[i,1])
+      if(mles[i,2]==Inf | is.na(mles[i,2])==TRUE){mles[i,] <- NA}
+    }
+  }
+  return(mles)
+}
+
+### Function to estimate proportions ###
+extremeProp <- function(dataTruncated, RTruncated, faceTruncated, mles){
+  faceNum <- 2^ncol(dataTruncated)-1
+  empirical <- rep(NA,faceNum)
+  extreme   <- rep(NA,faceNum)
+  r <- quantile(RTruncated,0.9999)
+  
+  for(i in 1:faceNum){
+    if(is.na(sum(mles[i,]))==TRUE){empirical[i] <- 0 ; extreme[i] <- 0}
+    else{
+      empirical[i] <- sum(faceTruncated==i)/length(faceTruncated)
+      extreme[i]   <- mles[i,2] * r^(-1/mles[i,1])
+    }
+  }
+  
+  faceProportion <- extreme*empirical/sum(extreme*empirical)
+  return(faceProportion)
+}
+
+### Function to run full method 1 ###
+method1 <- function(data, p, hillQuantile, facePointMin=1, pi){
+  
+  ### Step 1 - transform to Frechet margins ###
+  data <- apply(data,2,frechetMargins)
+  
+  ### Step 2 - truncation of X ###
+  dataTruncated <- apply(data,c(1,2),transform, p=p)
+  
+  ### Step 3 - remove all-zero points ###
+  dataTruncated <- dataTruncated[rowSums(dataTruncated)>0,]
+  RTruncated <- apply(dataTruncated,1,function(x){min(x[x>0])})
+  
+  ### Step 4 - assign points to faces ###
+  faceTruncated <- apply(dataTruncated,1,face)
+  
+  ### Step 5 - fit model on each face ###
+  mles <- mle(dataTruncated, faceTruncated, hillQuantile, facePointMin)
+  
+  ### Step 6 - estimate probability of extremes in each region ###
+  proportions <- extremeProp(dataTruncated, RTruncated, faceTruncated, mles)
+  
+  ### Step 7 - redistribute negligible mass ###
+  proportions[proportions < pi] <- 0
+  proportions <- proportions/sum(proportions)
+  
+  return(proportions)
+}
+
+#####################################################################################################################
+
+### Method 2 ###
+
+ratio<-function(x){
+  d<-length(x)
+  return(x[1:(d-1)]/x[2:d])
+}
+
+
+facesNew<-function(x,delta){
+  d<-length(x)
+  sx<-sort(x,index.return=T)
+  rx<-ratio(sx$x)
+  
+  if(all(rx>delta)){return(sum(choose(d,1:(d-1)))+1)}
+  
+  subsets <- lapply(1:d, function(x) combn(d,x))
+  l1<-lapply(which(rx<delta)+1,function(x){x:d})
+  l2<-lapply(l1,function(x){sx$ix[x]})
+  l3<-lapply(l2,function(y){apply(subsets[[length(y)]],2,function(x){sum(x%in%y)})})
+  
+  faces<-numeric(length(l2))
+  ln<-unlist(lapply(l2,length))
+  wm<-unlist(lapply(l3,which.max))
+  faces[ln==1]<-wm[ln==1]
+  faces[ln>1]<-wm[ln>1]+unlist(lapply(l2,function(y){sum(choose(d,1:(length(y)-1)))}))[ln>1]
+  return(faces)
+}
+
+
+whichFace<-function(x,dim,delta){
+  d<-length(x)
+  sx<-sort(x,index.return=T)
+  rx<-ratio(sx$x)
+  
+  if(all(rx>delta)){return(1:d)}
+  l1<-lapply(which(rx<delta)+1,function(x){x:d})
+  l2<-lapply(l1,function(x){sx$ix[x]})
+  idx<-lapply(l2,length)
+  return(l2[idx==dim][[1]])
+}
+
+
+method2 <- function(x, delta, hillQuantile, pi){
+  x <- apply(x,2,explMargins)  ## Transform to exponential margins
+  d<-dim(x)[2]  ## Dimension of data
+  fN<-apply(x,1,facesNew,delta)  ## Face on which all observations lie
+  fs<-sort(unique(unlist(fN)))  ## Regions containing points
+  
+  empiricalWeights <- 1/unlist(lapply(fN,length))  ## Weight each observation provides in empirical probabilities
+  
+  q<-hillQuantile
+  tau<-C<-NULL
+  indices<-list()
+  probUN<-NULL
+  r<-quantile(x,0.9999)
+  for(i in 1:length(fs))  ## Calculate tau, C, probabilities for each face with mass
+  {
+    indices[[i]]<-which(unlist(lapply(fN, function(x){fs[i] %in% x})))  ## Which observations in region i
+    ix<-whichFace(x[indices[[i]][1],],dim=max(which(fs[i]>=cumsum(choose(d,1:d-1)))),delta)  ## Label of face i (from 1 to 2^d-1)
+    tmp<-apply(as.matrix(x[indices[[i]],ix]),1,min)  ## Minimum of each observation in set C
+    u<-quantile(tmp,q)  ## Fix quantile separately for each face
+    tau[i]<-mean(tmp[tmp>u]- u)  ## tau and C estimates
+    tau[i]<-min(tau[i],1)
+    C[i] <- (sum(tmp>u)/length(tmp)) * exp(u/tau[i])
+    probUN[i] <- sum(empiricalWeights[indices[[i]]])* C[i] * exp(-r/tau[i])  ## Estimated proportion of mass on face i (pre-normalisation)
+  }
+  
+  probUN[is.na(probUN)]<-0  ## Set probability to 0 if no observations on face
+  allprob<-rep(0,2^d-1) 
+  alltau<-rep(NA,2^d-1)
+  
+  allprob[fs]<-probUN
+  allprob<-allprob/sum(allprob)  ## Normalise calculated probabilities
+  alltau[fs]<-tau
+  allprob[allprob<pi]<-0  ## If calculated probability less than pi, set to 0 and renormalise
+  allprob<-allprob/sum(allprob)
+  return(list(prob=allprob,tau=alltau))
+}
+
