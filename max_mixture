@@ -1,0 +1,370 @@
+##########################################################################################
+################################  MAX MIXTURE MODELS #####################################
+##########################################################################################
+rm(list=ls())
+
+## Load code ##
+source(file = "muscle.R")
+source(file = "other_codes.R")
+library(mvtnorm)
+library(evd)
+
+n <- 10^4
+d <- 5
+d_gauss <- 2
+alpha <- (1:9)/10
+prop <- seq(0.01, 0.1, by = 0.005)
+N <- 100
+
+
+# Theoretical subsets for Z from the Monte Carlo simulations
+setwd("~/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/montecarlo/")
+MC <- list.files()
+M_theorZ <- list()
+weights_theorZ <- list()
+for (i in MC){
+  temp <- read.csv(i)
+  M_theorZ[[i]] <- temp[-(d+1), ]
+  weights_theorZ[[i]] <- temp[(d+1), ]/sum(temp[(d+1), ])
+}
+
+# Theoretical subsets for Theta
+M_theorTheta <- cbind(c(1,0,0,0,0), c(0,1,0,0,0), c(0,0,0,1,0), c(0,0,0,0,1),
+                      c(1,1,1,0,0), c(0,0,1,1,1), c(1,1,1,1,1))
+
+# The positions of the 7 theoretical faces
+faces_theor <- c(varToFace(1,5), varToFace(2,5), varToFace(4,5), varToFace(5,5),
+                 varToFace(c(1,2,3),5), varToFace(c(3,4,5),5), varToFace(c(1,2,3,4,5),5))
+
+
+##########################################################################################
+#########################  MAX MIXTURE DISTRIBUTIONS RHO = 0 #############################
+##########################################################################################
+set.seed(34)
+rho <- 0
+hellZ0 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT0_meth1 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT0_meth2 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+helldamex0 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+Sigma <- rbind(c(1,rho),c(rho,1))
+
+ptm <- proc.time()
+for (j in 1:length(alpha)){
+  for (r in 1:N){
+############################## THE DATA ##############################
+    # Bivariate Gaussian with parameter rho
+
+    gauss12 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    gauss45 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    frechet12 <- apply(gauss12,2,frechetMargins)
+    frechet45 <- apply(gauss45,2,frechetMargins)
+    
+    # Logistic distributions with parameter alpha
+    logis123 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis345 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis12345 <- rmvevd(n, dep=alpha[j], model="log", d=5, mar=c(1,1,1))
+    frechet123 <- apply(logis123,2,frechetMargins)
+    frechet345 <- apply(logis345,2,frechetMargins)
+    frechet12345<- apply(logis12345,2,frechetMargins)
+    
+    ##### max mixture #####
+    X1 <- pmax(5*frechet12[,1], frechet123[,1], frechet12345[,1])
+    X2 <- pmax(5*frechet12[,2], frechet123[,2], frechet12345[,2])
+    X3 <- pmax(3*frechet123[,3], 3*frechet345[,1], frechet12345[,3])
+    X4 <- pmax(5*frechet45[,1], frechet345[,2], frechet12345[,4])
+    X5 <- pmax(5*frechet45[,2], frechet345[,3], frechet12345[,5])
+    X <- rbind(X1, X2, X3, X4, X5)/7
+    
+###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
+    directionsZ <- algo_subsets(X, prop)
+    M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
+    weights_empZ <- directionsZ[[5]]
+    
+    # The True Positive directions
+    TP_emp <- tail( duplicated( rbind(t(M_theorZ[[j]]), t(M_empZ)) ), ncol(M_empZ) )
+    TP_theor <- tail( duplicated( rbind(t(M_empZ), t(M_theorZ[[j]])) ), ncol(M_theorZ[[j]]) )
+    
+    prod_TP <- weights_empZ[TP_emp]*weights_theorZ[[j]][TP_theor]
+    # Hellinger distance: 1-h^2 = sum (sqrt(p_i*q_i)) on the TP only (otherwise = 0)
+    hellZ0[j,r] <- sqrt(1 - sum(sqrt(prod_TP)) )
+
+    data <- t(X)
+    
+#############################  SIMPSON ET AL. APPROACH ################################
+    # METHOD 1
+    m1 <- method1(data, p=0.5, hillQuantile=0.75, pi=0.01)
+    hellSWT0_meth1[j,r] <- sqrt(1 - sum(sqrt(m1[faces_theor]/7)))
+    
+    # METHOD 2
+    m2 <- method2(data, delta=0.5, hillQuantile=0.85, pi=0.01)$prob
+    hellSWT0_meth2[j,r] <- sqrt(1 - sum(sqrt(m2[faces_theor]/7)))
+    
+    
+#####################################  DAMEX ########################################
+    damex <- algo_damex(X, p=0.1, epsilon = 0.1)
+    M_damex <- as.matrix(damex[-(d+1), ])
+    weights_damex <- damex[d+1,]/sum(damex[d+1,]) 
+    FP_damex <- tail( !duplicated( rbind(t(M_theorTheta), t(M_damex)) ), ncol(M_damex) )
+    TN_damex <- tail( !duplicated( rbind(t(M_damex), t(M_theorTheta)) ), ncol(M_theorTheta) )
+    helldamex0[j,r] <- sqrt(1 - sum(sqrt(weights_damex[!FP_damex]/7)) )
+    
+    print(c(j,r))
+  }
+}
+proc.time()-ptm
+boxplot(t(hellZ0))
+boxplot(t(hellSWT0_meth1))
+boxplot(t(hellSWT0_meth2))
+boxplot(t(helldamex0))
+
+
+##########################################################################################
+########################  MAX MIXTURE DISTRIBUTIONS RHO = 1/4 ############################
+##########################################################################################
+set.seed(45)
+rho <- 0.25
+hellZ025 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT025_meth1 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT025_meth2 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+helldamex025 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+Sigma <- rbind(c(1,rho),c(rho,1))
+
+ptm <- proc.time()
+for (j in 1:length(alpha)){
+  for (r in 1:N){
+    ############################## THE DATA ##############################
+    # Bivariate Gaussian with parameter rho
+    gauss12 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    gauss45 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    frechet12 <- apply(gauss12,2,frechetMargins)
+    frechet45 <- apply(gauss45,2,frechetMargins)
+    
+    # Logistic distributions with parameter alpha
+    logis123 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis345 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis12345 <- rmvevd(n, dep=alpha[j], model="log", d=5, mar=c(1,1,1))
+    frechet123 <- apply(logis123,2,frechetMargins)
+    frechet345 <- apply(logis345,2,frechetMargins)
+    frechet12345<- apply(logis12345,2,frechetMargins)
+    
+    ##### max mixture #####
+    X1 <- pmax(5*frechet12[,1], frechet123[,1], frechet12345[,1])
+    X2 <- pmax(5*frechet12[,2], frechet123[,2], frechet12345[,2])
+    X3 <- pmax(3*frechet123[,3], 3*frechet345[,1], frechet12345[,3])
+    X4 <- pmax(5*frechet45[,1], frechet345[,2], frechet12345[,4])
+    X5 <- pmax(5*frechet45[,2], frechet345[,3], frechet12345[,5])
+    X <- rbind(X1, X2, X3, X4, X5)/7
+    
+    ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
+    directionsZ <- algo_subsets(X, prop)
+    M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
+    weights_empZ <- directionsZ[[5]]
+    
+    # The True Positive directions
+    TP_emp <- tail( duplicated( rbind(t(M_theorZ[[j]]), t(M_empZ)) ), ncol(M_empZ) )
+    TP_theor <- tail( duplicated( rbind(t(M_empZ), t(M_theorZ[[j]])) ), ncol(M_theorZ[[j]]) )
+    
+    prod_TP <- weights_empZ[TP_emp]*weights_theorZ[[j]][TP_theor]
+    # Hellinger distance: 1-h^2 = sum (sqrt(p_i*q_i)) on the TP only (otherwise = 0)
+    hellZ025[j,r] <- sqrt(1 - sum(sqrt(prod_TP)) )
+    
+    data <- t(X)
+    
+    #############################  SIMPSON ET AL. APPROACH ################################
+    # METHOD 1
+    m1 <- method1(data, p=0.5, hillQuantile=0.75, pi=0.01)
+    hellSWT025_meth1[j,r] <- sqrt(1 - sum(sqrt(m1[faces_theor]/7)))
+    
+    # METHOD 2
+    m2 <- method2(data, delta=0.5, hillQuantile=0.85, pi=0.01)$prob
+    hellSWT025_meth2[j,r] <- sqrt(1 - sum(sqrt(m2[faces_theor]/7)))
+    
+    
+    #####################################  DAMEX ########################################
+    damex <- algo_damex(X, p=0.1, epsilon = 0.1)
+    M_damex <- as.matrix(damex[-(d+1), ])
+    weights_damex <- damex[d+1,]/sum(damex[d+1,]) 
+    FP_damex <- tail( !duplicated( rbind(t(M_theorTheta), t(M_damex)) ), ncol(M_damex) )
+    TN_damex <- tail( !duplicated( rbind(t(M_damex), t(M_theorTheta)) ), ncol(M_theorTheta) )
+    helldamex025[j,r] <- sqrt(1 - sum(sqrt(weights_damex[!FP_damex]/7)) )
+    
+    print(c(j,r))
+  }
+}
+proc.time()-ptm
+boxplot(t(hellZ025))
+boxplot(t(hellSWT025_meth1))
+boxplot(t(hellSWT025_meth2))
+boxplot(t(helldamex025))
+
+
+
+
+##########################################################################################
+########################  MAX MIXTURE DISTRIBUTIONS RHO = 1/2 ############################
+##########################################################################################
+set.seed(56)
+rho <- 0.5
+hellZ05 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT05_meth1 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT05_meth2 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+helldamex05 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+Sigma <- rbind(c(1,rho),c(rho,1))
+
+ptm <- proc.time()
+for (j in 1:length(alpha)){
+  for (r in 1:N){
+    ############################## THE DATA ##############################
+    # Bivariate Gaussian with parameter rho
+    gauss12 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    gauss45 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    frechet12 <- apply(gauss12,2,frechetMargins)
+    frechet45 <- apply(gauss45,2,frechetMargins)
+    
+    # Logistic distributions with parameter alpha
+    logis123 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis345 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis12345 <- rmvevd(n, dep=alpha[j], model="log", d=5, mar=c(1,1,1))
+    frechet123 <- apply(logis123,2,frechetMargins)
+    frechet345 <- apply(logis345,2,frechetMargins)
+    frechet12345<- apply(logis12345,2,frechetMargins)
+    
+    ##### max mixture #####
+    X1 <- pmax(5*frechet12[,1], frechet123[,1], frechet12345[,1])
+    X2 <- pmax(5*frechet12[,2], frechet123[,2], frechet12345[,2])
+    X3 <- pmax(3*frechet123[,3], 3*frechet345[,1], frechet12345[,3])
+    X4 <- pmax(5*frechet45[,1], frechet345[,2], frechet12345[,4])
+    X5 <- pmax(5*frechet45[,2], frechet345[,3], frechet12345[,5])
+    X <- rbind(X1, X2, X3, X4, X5)/7
+    
+    ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
+    directionsZ <- algo_subsets(X, prop)
+    M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
+    weights_empZ <- directionsZ[[5]]
+    
+    # The True Positive directions
+    TP_emp <- tail( duplicated( rbind(t(M_theorZ[[j]]), t(M_empZ)) ), ncol(M_empZ) )
+    TP_theor <- tail( duplicated( rbind(t(M_empZ), t(M_theorZ[[j]])) ), ncol(M_theorZ[[j]]) )
+    
+    prod_TP <- weights_empZ[TP_emp]*weights_theorZ[[j]][TP_theor]
+    # Hellinger distance: 1-h^2 = sum (sqrt(p_i*q_i)) on the TP only (otherwise = 0)
+    hellZ05[j,r] <- sqrt(1 - sum(sqrt(prod_TP)) )
+    
+    data <- t(X)
+    
+    #############################  SIMPSON ET AL. APPROACH ################################
+    # METHOD 1
+    m1 <- method1(data, p=0.5, hillQuantile=0.75, pi=0.01)
+    hellSWT05_meth1[j,r] <- sqrt(1 - sum(sqrt(m1[faces_theor]/7)))
+    
+    # METHOD 2
+    m2 <- method2(data, delta=0.5, hillQuantile=0.85, pi=0.01)$prob
+    hellSWT05_meth2[j,r] <- sqrt(1 - sum(sqrt(m2[faces_theor]/7)))
+    
+    
+    #####################################  DAMEX ########################################
+    damex <- algo_damex(X, p=0.1, epsilon = 0.1)
+    M_damex <- as.matrix(damex[-(d+1), ])
+    weights_damex <- damex[d+1,]/sum(damex[d+1,]) 
+    FP_damex <- tail( !duplicated( rbind(t(M_theorTheta), t(M_damex)) ), ncol(M_damex) )
+    TN_damex <- tail( !duplicated( rbind(t(M_damex), t(M_theorTheta)) ), ncol(M_theorTheta) )
+    helldamex05[j,r] <- sqrt(1 - sum(sqrt(weights_damex[!FP_damex]/7)) )
+    
+    print(c(j,r))
+  }
+}
+proc.time()-ptm
+boxplot(t(hellZ05))
+boxplot(t(hellSWT05_meth1))
+boxplot(t(hellSWT05_meth2))
+boxplot(t(helldamex05))
+
+write.csv(hellZ05, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/sparse.csv")
+write.csv(hellSWT05_meth1, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/swt_meth1.csv")
+write.csv(hellSWT05_meth2, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/swt_meth2.csv")
+write.csv(helldamex05, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/damex.csv")
+
+
+
+
+
+##########################################################################################
+########################  MAX MIXTURE DISTRIBUTIONS RHO = 3/4 ############################
+##########################################################################################
+set.seed(67)
+rho <- 0.75
+hellZ075 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT075_meth1 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+hellSWT075_meth2 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+helldamex075 <- matrix(rep(NA,N*length(alpha)), ncol = N)
+Sigma <- rbind(c(1,rho),c(rho,1))
+
+ptm <- proc.time()
+for (j in 1:length(alpha)){
+  for (r in 1:N){
+    ############################## THE DATA ##############################
+    # Bivariate Gaussian with parameter rho
+    gauss12 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    gauss45 <- rmvnorm(n, mean = rep(0,d_gauss), Sigma)
+    frechet12 <- apply(gauss12,2,frechetMargins)
+    frechet45 <- apply(gauss45,2,frechetMargins)
+    
+    # Logistic distributions with parameter alpha
+    logis123 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis345 <- rmvevd(n, dep=alpha[j], model="log", d=3, mar=c(1,1,1))
+    logis12345 <- rmvevd(n, dep=alpha[j], model="log", d=5, mar=c(1,1,1))
+    frechet123 <- apply(logis123,2,frechetMargins)
+    frechet345 <- apply(logis345,2,frechetMargins)
+    frechet12345<- apply(logis12345,2,frechetMargins)
+    
+    ##### max mixture #####
+    X1 <- pmax(5*frechet12[,1], frechet123[,1], frechet12345[,1])
+    X2 <- pmax(5*frechet12[,2], frechet123[,2], frechet12345[,2])
+    X3 <- pmax(3*frechet123[,3], 3*frechet345[,1], frechet12345[,3])
+    X4 <- pmax(5*frechet45[,1], frechet345[,2], frechet12345[,4])
+    X5 <- pmax(5*frechet45[,2], frechet345[,3], frechet12345[,5])
+    X <- rbind(X1, X2, X3, X4, X5)/7
+    
+    ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
+    directionsZ <- algo_subsets(X, prop)
+    M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
+    weights_empZ <- directionsZ[[5]]
+    
+    # The True Positive directions
+    TP_emp <- tail( duplicated( rbind(t(M_theorZ[[j]]), t(M_empZ)) ), ncol(M_empZ) )
+    TP_theor <- tail( duplicated( rbind(t(M_empZ), t(M_theorZ[[j]])) ), ncol(M_theorZ[[j]]) )
+    
+    prod_TP <- weights_empZ[TP_emp]*weights_theorZ[[j]][TP_theor]
+    # Hellinger distance: 1-h^2 = sum (sqrt(p_i*q_i)) on the TP only (otherwise = 0)
+    hellZ075[j,r] <- sqrt(1 - sum(sqrt(prod_TP)) )
+    
+    data <- t(X)
+    
+    #############################  SIMPSON ET AL. APPROACH ################################
+    # METHOD 1
+    m1 <- method1(data, p=0.5, hillQuantile=0.75, pi=0.01)
+    hellSWT075_meth1[j,r] <- sqrt(1 - sum(sqrt(m1[faces_theor]/7)))
+    
+    # METHOD 2
+    m2 <- method2(data, delta=0.5, hillQuantile=0.85, pi=0.01)$prob
+    hellSWT075_meth2[j,r] <- sqrt(1 - sum(sqrt(m2[faces_theor]/7)))
+    
+    
+    #####################################  DAMEX ########################################
+    damex <- algo_damex(X, p=0.1, epsilon = 0.1)
+    M_damex <- as.matrix(damex[-(d+1), ])
+    weights_damex <- damex[d+1,]/sum(damex[d+1,]) 
+    FP_damex <- tail( !duplicated( rbind(t(M_theorTheta), t(M_damex)) ), ncol(M_damex) )
+    TN_damex <- tail( !duplicated( rbind(t(M_damex), t(M_theorTheta)) ), ncol(M_theorTheta) )
+    helldamex075[j,r] <- sqrt(1 - sum(sqrt(weights_damex[!FP_damex]/7)) )
+    
+    print(c(j,r))
+  }
+}
+proc.time()-ptm
+boxplot(t(hellZ075), ylim=c(0,1))
+boxplot(t(hellSWT075_meth1), ylim=c(0,1))
+boxplot(t(hellSWT075_meth2), ylim=c(0,1))
+boxplot(t(helldamex075), ylim=c(0,1))
+
+
