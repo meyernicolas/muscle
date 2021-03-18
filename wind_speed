@@ -1,0 +1,109 @@
+################################################################################
+###################### WIND SPEED IN 12 IRISH STATTIONS ########################
+################################################################################
+
+rm(list=ls())
+#library(rlang)
+library(latex2exp) # to insert latex symbols in the plots
+setwd("~/Dropbox/recherche/olivier/muscle/v2/code/")
+source("algo.R")
+
+# Hill estimator
+hill_function <- function(X, k){
+  n <- length(X)
+  X_order <- sort(X, decreasing = TRUE)
+  alpha <- sum(log(X_order[1:k]))/k - log(X_order[k])
+  return(1/alpha)
+}
+
+##################################### THE DATA ######################################
+# Details on the stations can be found on
+# http://lib.stat.cmu.edu/datasets/wind.desc
+# and in the article
+# Haslett, J. and Raftery, A. E.
+# Space-time Modelling with Long-memory Dependence :
+# Assessing Ireland’s Wind Power Resource (with Discussion).
+# Applied Statistics 38, 1-50, 1989
+
+wind <-read.csv("windspeed/wind.data.txt", sep="", dec=".", header = FALSE)
+wind <- t(wind[,-c(1,2,3)]) #remove the date columns
+n <- ncol(wind)
+d <- nrow(wind)
+stations <- c("RPT", "VAL", "ROS", "KIL", "SHA", "BIR", "DUB", "CLA", "MUL", "CLO", "BEL", "MAL")
+rownames(wind) <- stations
+
+############################## HIGHLIGHTING THE EXTREMES: HILL ###############################
+K <- 2:500
+hill_wind <- rep(0, length(K))
+norm_wind <- apply(wind,2,sum)
+for (j in K){
+  hill_wind[j-1] <- hill_function(norm_wind, K[j-1])
+}
+plot(K, hill_wind, type ='l', xlab = "k", ylab = TeX('Hill estimator of $\\alpha$'))
+# the curve starts to stabilize around k=100
+alpha <- mean(hill_wind[100])
+alpha #very large alpha
+
+windHill <- wind^alpha
+
+
+############################ EXTREMAL DIRECTIONS : SOME PLOTS ###############################
+prop <- seq(0.005, 0.18, by = 0.005)
+result_wind <- algo_plot(windHill, prop)
+which_k <- which.min(result_wind[ ,4])
+k <- result_wind[which_k, 1]
+k
+
+plot(result_wind[ ,1], result_wind[ ,4], type = "l", ylim = c(0.2, 0.5), xlab = "k", ylab = "penalized log-likelihood")
+lines( x=c(k, k), y=c(0, result_wind[ which_k, 4]), lty=3, lwd=2)
+lines( x=c(-10, k), y=c(result_wind[ which_k, 4], result_wind[ which_k, 4]), lty=3, lwd=2)
+text(k, 0.32, expression(paste(hat(k)) == 460))
+
+plot(result_wind[ , 1], result_wind[ , 3], type = "l", xlab = "k", ylab = expression(paste(hat(s)(k))))
+lines( x=c(k,k), y=c(0,result_wind[ which_k, 3]), lty=3, lwd=2)
+lines( x=c(-10,k), y=c(result_wind[ which_k, 3],result_wind[ which_k, 3]), lty=3, lwd=2)
+text(k, 20, expression(paste(hat(s)(hat(k)) == 11)))
+
+############################ THE EXTREMAL DIRECTIONS ###############################
+directions <- algo_subsets(windHill, prop)
+s_hat <- directions[[4]]
+s_hat
+extr_dir <- directions[[1]][1:d, ] # the faces
+
+extrStations <- list()
+for (j in 1:s_hat){
+  extrStations[[j]] <- stations[ which(extr_dir[ ,j]==1) ]
+}
+extrStations
+
+
+############################ BEYOND THE EXTREMES ###############################
+# We remove the extremal directions which appeared and reapply our procedure
+nonExt <- stations[which( apply(extr_dir,1,sum) == 0)]
+d_nonExtr <- length(nonExt)
+wind_nonExt <- wind[nonExt, ]
+
+hill_wind_nonExt <- rep(0, length(K))
+norm_wind_nonExt <- apply(wind_nonExt,2,sum)
+for (j in K){
+  hill_wind_nonExt[j-1] <- hill_function(norm_wind_nonExt, K[j-1])
+}
+alpha_nonExt <- hill_wind_nonExt[100]
+alpha_nonExt
+
+wind_nonExt <- wind_nonExt^alpha_nonExt
+
+# The non-extremal directions
+NonExtr_dir <- algo_subsets(wind_nonExt, prop)
+s_hat <- NonExtr_dir[[4]]
+s_hat
+NonExtr_faces <- as.matrix(NonExtr_dir[[1]][1:d_nonExtr, ]) # the faces
+
+NonExtr_stations <- list()
+for (j in 1:s_hat){
+  NonExtr_stations[[j]] <- nonExt[ which(NonExtr_faces[ ,j]==1) ]
+}
+NonExtr_stations
+
+
+
