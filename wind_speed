@@ -5,8 +5,8 @@
 rm(list=ls())
 #library(rlang)
 library(latex2exp) # to insert latex symbols in the plots
-setwd("~/Dropbox/recherche/olivier/muscle/v2/code/")
-source("algo.R")
+setwd("~/Dropbox/recherche/olivier/3_muscle/v4/code/")
+source("muscle.R")
 
 # Hill estimator
 hill_function <- function(X, k){
@@ -25,7 +25,7 @@ hill_function <- function(X, k){
 # Assessing Ireland’s Wind Power Resource (with Discussion).
 # Applied Statistics 38, 1-50, 1989
 
-wind <-read.csv("windspeed/wind.data.txt", sep="", dec=".", header = FALSE)
+wind <-read.csv("real_data/windspeed/wind.data.txt", sep="", dec=".", header = FALSE)
 wind <- t(wind[,-c(1,2,3)]) #remove the date columns
 n <- ncol(wind)
 d <- nrow(wind)
@@ -49,7 +49,7 @@ windHill <- wind^alpha
 
 ############################ EXTREMAL DIRECTIONS : SOME PLOTS ###############################
 prop <- seq(0.005, 0.18, by = 0.005)
-result_wind <- algo_plot(windHill, prop)
+result_wind <- muscle_plot(windHill, prop)
 which_k <- which.min(result_wind[ ,4])
 k <- result_wind[which_k, 1]
 k
@@ -65,7 +65,7 @@ lines( x=c(-10,k), y=c(result_wind[ which_k, 3],result_wind[ which_k, 3]), lty=3
 text(k, 20, expression(paste(hat(s)(hat(k)) == 11)))
 
 ############################ THE EXTREMAL DIRECTIONS ###############################
-directions <- algo_subsets(windHill, prop)
+directions <- muscle_clusters(windHill, prop)
 s_hat <- directions[[4]]
 s_hat
 extr_dir <- directions[[1]][1:d, ] # the faces
@@ -94,7 +94,7 @@ alpha_nonExt
 wind_nonExt <- wind_nonExt^alpha_nonExt
 
 # The non-extremal directions
-NonExtr_dir <- algo_subsets(wind_nonExt, prop)
+NonExtr_dir <- muscle_clusters(wind_nonExt, prop)
 s_hat <- NonExtr_dir[[4]]
 s_hat
 NonExtr_faces <- as.matrix(NonExtr_dir[[1]][1:d_nonExtr, ]) # the faces
@@ -104,6 +104,3 @@ for (j in 1:s_hat){
   NonExtr_stations[[j]] <- nonExt[ which(NonExtr_faces[ ,j]==1) ]
 }
 NonExtr_stations
-
-
-
