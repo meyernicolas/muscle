@@ -4,8 +4,10 @@
 rm(list=ls())
 
 ## Load code ##
+setwd("~/Dropbox/recherche/olivier/3_muscle/v4/code")
 source(file = "muscle.R")
-source(file = "other_codes.R")
+source(file = "damex.R")
+source(file = "swt.R")
 library(mvtnorm)
 library(evd)
 
@@ -18,7 +20,7 @@ N <- 100
 
 
 # Theoretical subsets for Z from the Monte Carlo simulations
-setwd("~/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/montecarlo/")
+setwd("max_mixture/montecarlo/")
 MC <- list.files()
 M_theorZ <- list()
 weights_theorZ <- list()
@@ -36,6 +38,7 @@ M_theorTheta <- cbind(c(1,0,0,0,0), c(0,1,0,0,0), c(0,0,0,1,0), c(0,0,0,0,1),
 faces_theor <- c(varToFace(1,5), varToFace(2,5), varToFace(4,5), varToFace(5,5),
                  varToFace(c(1,2,3),5), varToFace(c(3,4,5),5), varToFace(c(1,2,3,4,5),5))
 
+setwd("~/Dropbox/recherche/olivier/3_muscle/v4/code/max_mixture/")
 
 ##########################################################################################
 #########################  MAX MIXTURE DISTRIBUTIONS RHO = 0 #############################
@@ -76,7 +79,7 @@ for (j in 1:length(alpha)){
     X <- rbind(X1, X2, X3, X4, X5)/7
     
 ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
-    directionsZ <- algo_subsets(X, prop)
+    directionsZ <- muscle_clusters(X, prop)
     M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
     weights_empZ <- directionsZ[[5]]
     
@@ -117,6 +120,12 @@ boxplot(t(hellSWT0_meth1))
 boxplot(t(hellSWT0_meth2))
 boxplot(t(helldamex0))
 
+write.csv(hellZ0, "mixture_rho0/muscle_rho0.csv")
+write.csv(hellSWT0_meth1, "mixture_rho0/swt_meth1_rho0.csv")
+write.csv(hellSWT0_meth2, "mixture_rho0/swt_meth2_rho0.csv")
+write.csv(helldamex0, "mixture_rho0/damex_rho0.csv")
+
+
 
 ##########################################################################################
 ########################  MAX MIXTURE DISTRIBUTIONS RHO = 1/4 ############################
@@ -156,7 +165,7 @@ for (j in 1:length(alpha)){
     X <- rbind(X1, X2, X3, X4, X5)/7
     
     ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
-    directionsZ <- algo_subsets(X, prop)
+    directionsZ <- muscle_clusters(X, prop)
     M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
     weights_empZ <- directionsZ[[5]]
     
@@ -197,7 +206,10 @@ boxplot(t(hellSWT025_meth1))
 boxplot(t(hellSWT025_meth2))
 boxplot(t(helldamex025))
 
-
+write.csv(hellZ025, "mixture_rho025/muscle_rho025.csv")
+write.csv(hellSWT025_meth1, "mixture_rho025/swt_meth1_rho025.csv")
+write.csv(hellSWT025_meth2, "mixture_rho025/swt_meth2_rho025.csv")
+write.csv(helldamex025, "mixture_rho025/damex_rho025.csv")
 
 
 ##########################################################################################
@@ -238,7 +250,7 @@ for (j in 1:length(alpha)){
     X <- rbind(X1, X2, X3, X4, X5)/7
     
     ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
-    directionsZ <- algo_subsets(X, prop)
+    directionsZ <- muscle_clusters(X, prop)
     M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
     weights_empZ <- directionsZ[[5]]
     
@@ -279,13 +291,10 @@ boxplot(t(hellSWT05_meth1))
 boxplot(t(hellSWT05_meth2))
 boxplot(t(helldamex05))
 
-write.csv(hellZ05, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/sparse.csv")
-write.csv(hellSWT05_meth1, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/swt_meth1.csv")
-write.csv(hellSWT05_meth2, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/swt_meth2.csv")
-write.csv(helldamex05, "/Users/nicolasmeyer/Dropbox/recherche/olivier/tail_inference_high_dimensional_data/v2/code/data_mixture_rho05/damex.csv")
-
-
-
+write.csv(hellZ05, "mixture_rho05/muscle_rho05.csv")
+write.csv(hellSWT05_meth1, "mixture_rho05/swt_meth1_rho05.csv")
+write.csv(hellSWT05_meth2, "mixture_rho05/swt_meth2_rho05.csv")
+write.csv(helldamex05, "mixture_rho05/damex_rho05.csv")
 
 
 ##########################################################################################
@@ -326,7 +335,7 @@ for (j in 1:length(alpha)){
     X <- rbind(X1, X2, X3, X4, X5)/7
     
     ###################  COMPARISON WITH THE TRUE DIRECTIONS FOR Z #####################
-    directionsZ <- algo_subsets(X, prop)
+    directionsZ <- muscle_clusters(X, prop)
     M_empZ <- as.matrix(directionsZ[[1]][-(d+1), ])# the empirical matrix
     weights_empZ <- directionsZ[[5]]
     
@@ -367,4 +376,7 @@ boxplot(t(hellSWT075_meth1), ylim=c(0,1))
 boxplot(t(hellSWT075_meth2), ylim=c(0,1))
 boxplot(t(helldamex075), ylim=c(0,1))
 
-
+write.csv(hellZ075, "mixture_rho075/muscle_rho075.csv")
+write.csv(hellSWT075_meth1, "mixture_rho075/swt_meth1_rho075.csv")
+write.csv(hellSWT075_meth2, "mixture_rho075/swt_meth2_rho075.csv")
+write.csv(helldamex075, "mixture_rho075/damex_rho075.csv")
