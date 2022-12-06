@@ -1,7 +1,7 @@
 # Multivariate Sparse CLustering for Extremes - MUSCLE
 
 The code is based on the study of extremal dependence through L^1 minimization developed in the article
-Meyer and Wintenberger (2020+). Multivariate Sparse CLustering for Extremes.
+Meyer and Wintenberger (2021). Multivariate Sparse CLustering for Extremes.
 
 The first file consists in the algorithm MUSCLE which provides the extremal directions (clusters) of a sample X_1,...,X_n. We then illustrate our algorithm on several examples.
 
