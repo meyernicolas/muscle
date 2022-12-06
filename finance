@@ -1,12 +1,12 @@
 ################################################################################
-########################### FINANCE: PORTFOLIOS 49 #############################
+################################ PORTFOLIOS 49 #################################
 ################################################################################
 
 rm(list=ls())
 library(rlang)
-library(latex2exp)
+library(latex2exp) # to insert latex symbols in the plots
+setwd("~/Dropbox/recherche/olivier/3_muscle/v4/code/")
 source("muscle.R")
-
 # Hill estimator
 hill_function <- function(X, k){
   n <- length(X)
@@ -17,7 +17,7 @@ hill_function <- function(X, k){
 
 ##################################### THE DATA ######################################
 # Details on the industries can be found on the file 'details_industries.txt'
-portfolios <-read.delim("finance/49_Industry_Portfolios_Daily.txt", sep="", dec=".", header = TRUE)
+portfolios <-read.delim("real_data/finance/49_Industry_Portfolios_Daily.txt", sep="", dec=".", header = TRUE)
 industries <- colnames(portfolios)
 # We restrict the time period to 1970-2019
 date_min <- which(rownames(portfolios)==19700102)
@@ -46,7 +46,7 @@ variability <- mydata^alpha_mydata
 
 
 ############################ EXTREMAL DIRECTIONS : SOME PLOTS ###############################
-result_variab <- algo_plot(variability, prop)
+result_variab <- muscle_plot(variability, prop)
 which_k_variab<- which.min(result_variab[ ,4])
 which_k_variab
 k_variab <- result_variab[which_k_variab ,1]
@@ -64,7 +64,7 @@ lines( x=c(0,k_variab), y=c(result_variab[ which_k_variab, 3],result_variab[ whi
 text(2*k_variab/3, 22, expression(paste(hat(s)(hat(k)) == 14)))
 
 ############################ THE EXTREMAL DIRECTIONS ###############################
-directions <- algo_subsets(variability, prop)
+directions <- muscle_clusters(variability, prop)
 s_hat <- directions[[4]]
 s_hat
 extr_dir <- directions[[1]][1:d, ] # the faces
@@ -99,7 +99,7 @@ abline(h = alpha_mydataNonExtr, lty=3)
 variability_NonExtr <- mydataNonExtr^alpha_mydataNonExtr
 
 # The non-extremal directions
-NonExtr_dir <- algo_subsets(variability_NonExtr, prop)
+NonExtr_dir <- muscle_clusters(variability_NonExtr, prop)
 s_hat <- NonExtr_dir[[4]]
 s_hat
 NonExtr_faces <- as.matrix(NonExtr_dir[[1]][1:d_NonExtr, ]) # the faces
