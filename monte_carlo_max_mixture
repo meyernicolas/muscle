@@ -2,10 +2,10 @@
 #############################  MONTE CARLO SIMULATIONS ###################################
 ############################  FOR THE DISTRIBUTION OF Z ##################################
 ##########################################################################################
-# The distribution of Z for the max-mixture can not be easily identified, we thus compute it via Monte Carlo simulations.
-
 rm(list=ls())
 
+## Load code ##
+setwd("~/Dropbox/recherche/olivier/3_muscle/v4/code")
 source(file = "muscle.R")
 library(mvtnorm)
 library(evd)
@@ -63,5 +63,3 @@ for (r in 1:9){
   
   print(r)
 }
-
-
