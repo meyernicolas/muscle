@@ -1,31 +1,4 @@
-We provide here for completeness the code of Goix et al. (2017) and Simpson et al. (2020) which are used for our comparisons.
-
-
-########## Goix et al. (2017) - the DAMEX algorithm ##########
-
-algo_damex <- function(X, p=0.1, epsilon=0.1){
-  n <- ncol(X)
-  d <- nrow(X)
-  k <- sqrt(n)
-  max_norm <- apply(X, 2, max)
-  #  X_rt <- t(apply(X, 1, rank_trans)) # rank transform
-  
-  binary <- (X[ , max_norm > n/k ] - n/k*epsilon > 0)*1 # the epsilon-thickened rectangles
-  M <- occ_subsets(binary)
-  ordered_subcones <- order(M[d+1, ], decreasing=TRUE) # we order the matrix M in the increasing order
-  M <- as.matrix(M[ , ordered_subcones])
-  
-  # we keep the most represented subsets
-  relevant <- M[d+1, ] > p*sum(M[d+1, ])/ncol(M)
-  result <- as.matrix(M[, relevant])
-  
-  return(result)
-}
-
-######################################################################################################################################################
-
-########## Simpson et al. (2020) - the two methods ##########
-
+#####################################################################################################################
 ### General functions ###
 
 ### Transform to Frechet margins ###
@@ -255,3 +228,5 @@ method2 <- function(x, delta, hillQuantile, pi){
   return(list(prob=allprob,tau=alltau))
 }
 
+
+#####################################################################################################################
