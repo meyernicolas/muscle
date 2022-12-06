@@ -1,12 +1,12 @@
 # Multivariate Sparse CLustering for Extremes - MUSCLE
 
-The code is based on the study of extremal dependence through L^1 minimization developed in the article
-Meyer and Wintenberger (2021). Multivariate Sparse CLustering for Extremes.
+The code is based on the study of extremal dependence through L^1 minimization developed in the article Meyer and Wintenberger (2021) entitled "Multivariate Sparse CLustering for Extremes".
 
-The first file consists in the algorithm MUSCLE which provides the extremal directions (clusters) of a sample X_1,...,X_n. We then illustrate our algorithm on several examples.
+The file 'muscle' contains the algorithm MUSCLE developed in this article which provides the extremal directions (clusters) of a sample X_1,...,X_n.
 
-In the first example we deal with a Gaussian copula with a common correlation parameter ρ<1 and marginal distributions satisfying P(X > x) = 1/x, ie Pareto(1) distribution. We compare our approach with the DAMEX algorithm introduced by Goix et al.(2017) (see 'damex').
+This algorithm is compared with the DAMEX algorithm introduced by Goix et al.(2017) (see 'damex') and a procedure based on hodden regular variation proposed by Simpson et al. (2020) (see 'swt').
+The comparison is achieved on two types of examples :
+- in the first example we deal with a Gaussian copula with a common correlation parameter ρ<1 and marginal distributions satisfying P(X > x) = 1/x, ie Pareto(1) distribution.
+- the second example is taken from Simpson et al. (2020) and consists of a mixture of Gaussian and extreme-value logistic distributions. We compare our approach with the one introduced by Goix et al.(2017) and by Simpson et al.(2020). Since the true distribution of Z is not known, we compute it via MOnte-Carlo simulations. (see 'Monte-Carlo').
 
-The second example is taken from Simpson et al. (2020) and consists of a mixture of Gaussian and extreme-value logistic distributions (in 'swt'). We compare our approach with the one introduced by Goix et al.(2017) and by Simpson et al.(2020).
-
-Finally we apply MUSCLE to wind speed data and financial return data.
+Finally we apply the algorithm MUSCLE to windspeed data and financial return data.
