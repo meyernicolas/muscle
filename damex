@@ -1,0 +1,20 @@
+# THE 'DAMEX' ALGORITHM
+
+algo_damex <- function(X, p=0.1, epsilon=0.1){
+  n <- ncol(X)
+  d <- nrow(X)
+  k <- sqrt(n)
+  max_norm <- apply(X, 2, max)
+  #  X_rt <- t(apply(X, 1, rank_trans)) # rank transform
+  
+  binary <- (X[ , max_norm > n/k ] - n/k*epsilon > 0)*1 # the epsilon-thickened rectangles
+  M <- occ_subsets(binary)
+  ordered_subcones <- order(M[d+1, ], decreasing=TRUE) # we order the matrix M in the increasing order
+  M <- as.matrix(M[ , ordered_subcones])
+  
+  # we keep the most represented subsets
+  relevant <- M[d+1, ] > p*sum(M[d+1, ])/ncol(M)
+  result <- as.matrix(M[, relevant])
+  
+  return(result)
+}
