@@ -1,6 +1,8 @@
-# The functions related to the article "Multivariate sparse clustering for extremes" by Nicolas Meyer and Olivier Wintenberger.
+# The functions related to the article
+# "MUltivariate Sparse CLustering for Extremes"
+# by Nicolas Meyer and Olivier Wintenberger
 
-rm(list=ls())
+# rm(list=ls())
 library(rlang)
 
 vect_of_thresholds <- function(v){
@@ -39,7 +41,7 @@ cones_function <- function(v, Gamma){
     cones[ord[seq2(d-r1+1, d)], j] <- 1 # the coordinates on which v is projected
     
     j <- J[2]
-    r2 <- d+2
+    r2 <- d+2 # just need to be above d+1 I think
   }
   
   if (length_J > 1){
@@ -70,7 +72,7 @@ occ_subsets <- function(testmtx){
   return(result)
 }
 
-algo_plot <- function(X, prop){
+muscle_plot <- function(X, prop){
   # This function gives for each k the value of s_hat which minimizes the KL
   # and the value of this minimizer
   n <- ncol(X)
@@ -91,7 +93,7 @@ algo_plot <- function(X, prop){
   result <- matrix(NA, ncol = 4)
   colnames(result) <- c("k", "s_tilde", "hat_s", "minimizer")
   
-  for ( j in 1:length_thresh ){
+  for (j in 1:length_thresh){
     binary_bis <- binary[( (j-1)*d + 1 ): (j*d) , !is.na(binary[(j-1)*d+1, ]) ] # we remove the columns of NA of the considered block
     k <- ncol(binary_bis) # it corresponds to k_n
     M <- occ_subsets(binary_bis)
@@ -103,13 +105,10 @@ algo_plot <- function(X, prop){
     T <- M[(d+1), ]
     
     # we now optimize in s_hat
-    optim <- r+1 - lfactorial(k) + k*log(k) + sum(lfactorial(T)) - cumsum(T*(log(T)))
-    if (r > 1){
-      optim_first <- 2:r - lfactorial(k) + k*log(k) + sum(lfactorial(T)) - cumsum(T[-r]*(log(T)[-r])) - (k-cumsum(T[-r]))*log( (k-cumsum(T[-r])) / ((r-1):1) )
-      optim <- c(optim_first, optim)
-    }
+    optim <- 1:(r-1) - lfactorial(k) + k*log(k) + sum(lfactorial(T)) - cumsum(T[-r]*(log(T)[-r])) - (k-cumsum(T[-r]))*log( (k-cumsum(T[-r])) / ((r-1):1) )
     s_hat <- which.min(optim)
-    minimizer <- (optim[s_hat] - k * log(1-k/n)) / k
+    
+    minimizer <- (optim[s_hat])/k + k/n
     result <- rbind(result, c(k, r, s_hat, minimizer))
   }
 
@@ -117,8 +116,8 @@ algo_plot <- function(X, prop){
   return(result)
 }
 
-
-algo_subsets <- function(X, prop){
+##########################################################
+muscle_clusters <- function(X, prop){
   # This function uses the previous algo, chooses the optimal k,
   # and gives the associated subsets on which the angular vector Z puts mass
   n <- ncol(X)
@@ -152,12 +151,9 @@ algo_subsets <- function(X, prop){
     T <- M[(d+1), ]
     
     # we now optimize in s_hat
-    optim <- r+1 - lfactorial(k) + k*log(k) + sum(lfactorial(T)) - cumsum(T*(log(T)))
-    if (r > 1){
-      optim_first <- 2:r - lfactorial(k) + k*log(k) + sum(lfactorial(T)) - cumsum(T[-r]*(log(T)[-r])) - (k-cumsum(T[-r]))*log( (k-cumsum(T[-r])) / ((r-1):1) )
-      optim <- c(optim_first, optim)
-    }
-    min_loc <- (optim[which.min(optim)] - k * log(1-k/n)) / k
+    # we now optimize in s_hat
+    optim <- 1:(r-1) - lfactorial(k) + k*log(k) + sum(lfactorial(T)) - cumsum(T[-r]*(log(T)[-r])) - (k-cumsum(T[-r]))*log( (k-cumsum(T[-r])) / ((r-1):1) )
+    min_loc <- optim[which.min(optim)]/k + k/n
 
     if (minimizer > min_loc){
       minimizer <- min_loc
@@ -171,3 +167,4 @@ algo_subsets <- function(X, prop){
   weights <- M[(d+1), ]/ sum(M[(d+1), ])
   return(list(M, k_hat, u, s_hat, weights))
 }
+
