@@ -1,11 +1,12 @@
 ##########################################################################################
 ##############################  ASYMPTOTIC INDEPENDENCE ##################################
 ##########################################################################################
-# We apply our method on a Gaussian copula with Pareto marginals.
+# We apply our method on a Gaussian copula with Pareto marginals
 
 rm(list=ls())
 
 ## Load code ##
+setwd("~/Dropbox/recherche/olivier/3_muscle/v4/code")
 source(file = "muscle.R")
 library(mvtnorm)
 GaussToPar <- function(x){1/(1-pnorm(x))} # transform Gaussian into Pareto
@@ -18,7 +19,7 @@ GaussToPar <- function(x){1/(1-pnorm(x))} # transform Gaussian into Pareto
 set.seed(321)
 d <- 40
 n <- 3*10^4
-prop <- seq(0.01, 0.12, by = 0.005)
+prop <- seq(0.005, 0.15, by = 0.005)
 rho <- 0.5
 
 Sigma <- matrix(rep(rho,d^2), ncol=d)
@@ -26,12 +27,12 @@ diag(Sigma) <- rep(1,d)
 gauss <- rmvnorm(n, mean = rep(0,d), Sigma)
 X <- t(apply(gauss, 2, GaussToPar))
 
-result <- algo_plot(X, prop)
-which_k <- which.min(result[ , 4])
-k <- result[which_k ,1]
+result <- muscle_plot(X, prop)
+which_k <- which.min(result[ ,4])
+k <- result[which_k, 1]
 
 # Evolution of our criterion with k
-plot(result[ ,1], result[ ,4], type='l', ylim = c(0.7, 0.9), xlab = "k", ylab = "penalized log-likelihood")
+plot(result[ ,1], result[ ,4], type='l', ylim = c(0.7,0.95), xlab = "k", ylab = "penalized log-likelihood")
 lines( x=c(k, k), y=c(0, result[which_k, 4]), lty=3, lwd=2)
 lines( x=c(0, k), y=c(result[which_k, 4], result[which_k, 4]), lty=3, lwd=2)
 text(k+35, 0.8, expression(paste(hat(k))== 1050))
@@ -46,7 +47,7 @@ text( k, 50, expression(paste(hat(s)(hat(k))== 41)))
 
 #########################  COMPARISON WITH THE TRUE DIRECTIONS ###########################
 # Empirical extremal directions detected by our algorithm
-  directions <- algo_subsets(X, prop)
+  directions <- muscle_clusters(X, prop)
   M_emp <- as.matrix(directions[[1]][-(d+1), ])# the empirical matrix
   M_theor <- diag(d)
   weights <- directions[[5]]
@@ -63,14 +64,15 @@ hell <- sqrt(1 - sum(sqrt(weights[!FP]/d)) )
 hell
 
 ######################################################################################## 
-##################################### ALGORITHM ########################################
+#####################################  ALGORITHM #######################################
 ######################################################################################## 
+source(file = "damex.R") # the damex algorithm
 
 set.seed(1234)
 n <- 3*10^4
 d <- 40
 prop <- seq(0.01, 0.12, by = 0.01)
-N <- 100
+N <- 2
 hellinger <- list()
 hellinger_damex <- list()
 M_theor <- diag(d)
@@ -86,8 +88,8 @@ for (i in 1:4){
       gauss <- rmvnorm(n, mean = rep(0,d), Sigma)
       X <- t(apply(gauss, 2, GaussToPar))
       
-      # OUR PROCEDURE
-      directions <- algo_subsets(X, prop)
+      # MUSCLE
+      directions <- muscle_subsets(X, prop)
       M_result <- as.matrix(directions[[1]][-(d+1), ])# the empirical matrix
       weights <- directions[[5]]
      # The False Positive directions
@@ -116,4 +118,17 @@ names(hellinger_damex) <- c("0", "0.25", "0.5", "0.75")
 bplot <- list(hellinger[[1]], hellinger_damex[[1]], hellinger[[2]], hellinger_damex[[2]],
                 hellinger[[3]], hellinger_damex[[3]], hellinger[[4]], hellinger_damex[[4]])
 
-boxplot(bplot, ylab="Hellinger distance", xlab=expression(paste(rho)))
+color <- rep(c("orange","red"),4)
+position <- c(0.5,2.5, 4.5, 6.5, 8.5)
+names_box <- c("                                                        0",
+               "                                                        0.25",
+               "                                                        0.5",
+               "                                                                0.75", " ")
+
+boxplot(bplot, ylab="Hellinger distance", xlab=expression(paste(rho)), col = color, xaxt = "n")
+
+axis(1, at = position, labels = names_box)
+
+legend("bottomright", inset=.04, title="Mean Hellinger distance", horiz = TRUE,
+       c("MUSCLE", "DAMEX"), fill=c("orange","red"), cex=1)
+
